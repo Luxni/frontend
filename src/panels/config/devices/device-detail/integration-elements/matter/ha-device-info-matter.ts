@@ -3,8 +3,14 @@ import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators";
 import "../../../../../../components/ha-expansion-panel";
 import type { DeviceRegistryEntry } from "../../../../../../data/device_registry";
-import type { MatterNodeDiagnostics } from "../../../../../../data/matter";
-import { getMatterNodeDiagnostics } from "../../../../../../data/matter";
+import type {
+  MatterNodeBinding,
+  MatterNodeDiagnostics,
+} from "../../../../../../data/matter";
+import {
+  getMatterNodeBinding,
+  getMatterNodeDiagnostics,
+} from "../../../../../../data/matter";
 import "@material/mwc-list";
 import "../../../../../../components/ha-list-item";
 import { SubscribeMixin } from "../../../../../../mixins/subscribe-mixin";
@@ -18,6 +24,8 @@ export class HaDeviceInfoMatter extends SubscribeMixin(LitElement) {
   @property({ attribute: false }) public device!: DeviceRegistryEntry;
 
   @state() private _nodeDiagnostics?: MatterNodeDiagnostics;
+
+  @state() private _nodeBinding?: MatterNodeBinding[];
 
   public willUpdate(changedProperties: PropertyValues) {
     super.willUpdate(changedProperties);
@@ -44,12 +52,28 @@ export class HaDeviceInfoMatter extends SubscribeMixin(LitElement) {
     } catch (_err: any) {
       this._nodeDiagnostics = undefined;
     }
+
+    try {
+      this._nodeBinding = await getMatterNodeBinding(this.hass, this.device.id);
+    } catch (_err: any) {
+      this._nodeBinding = undefined;
+    }
   }
 
   protected render() {
     if (!this._nodeDiagnostics) {
       return nothing;
     }
+
+    const hasNodeBinding = this._nodeBinding && this._nodeBinding.length > 0;
+    this.dispatchEvent(
+      new CustomEvent("node-binding-changed", {
+        detail: { hasNodeBinding },
+        bubbles: true,
+        composed: true,
+      })
+    );
+
     return html`
       <ha-expansion-panel
         .header=${this.hass.localize(

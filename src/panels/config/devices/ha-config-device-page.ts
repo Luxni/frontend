@@ -76,6 +76,7 @@ import { brandsUrl } from "../../../util/brands-url";
 import { fileDownload } from "../../../util/file_download";
 import "../../logbook/ha-logbook";
 import "./device-detail/ha-device-entities-card";
+import "./device-detail/ha-device-binding-card";
 import "./device-detail/ha-device-info-card";
 import "./device-detail/ha-device-via-devices-card";
 import { showDeviceAutomationDialog } from "./device-detail/show-dialog-device-automation";
@@ -120,6 +121,8 @@ export class HaConfigDevicePage extends LitElement {
   @property({ attribute: "is-wide", type: Boolean }) public isWide = false;
 
   @property({ attribute: false }) public showAdvanced = false;
+
+  @state() private _hasNodeBinding = false;
 
   @state() private _related?: RelatedResult;
 
@@ -866,6 +869,22 @@ export class HaConfigDevicePage extends LitElement {
             .deviceId=${this.deviceId}
           ></ha-device-via-devices-card>
         </div>
+
+        <div class="column">
+          ${this._hasNodeBinding
+            ? html`
+                <ha-device-binding-card
+                  .hass=${this.hass}
+                  .header=${"Binding"}
+                  .deviceName=${deviceName}
+                  .entities=${entitiesByCategory.config}
+                  .showHidden=${device.disabled_by !== null}
+                >
+                </ha-device-binding-card>
+              `
+            : nothing}
+        </div>
+
         <div class="column">
           ${this.narrow ? [automationCard, sceneCard, scriptCard] : ""}
           ${isComponentLoaded(this.hass, "logbook")
@@ -889,6 +908,12 @@ export class HaConfigDevicePage extends LitElement {
         </div>
       </div>
     </hass-subpage>`;
+  }
+
+  private _handleNodeBindingChanged(
+    event: CustomEvent<{ hasNodeBinding: boolean }>
+  ) {
+    this._hasNodeBinding = event.detail.hasNodeBinding;
   }
 
   private async _getDiagnosticButtons(requestId: number): Promise<void> {
@@ -1243,6 +1268,7 @@ export class HaConfigDevicePage extends LitElement {
         <ha-device-info-matter
           .hass=${this.hass}
           .device=${device}
+          @node-binding-changed=${this._handleNodeBindingChanged}
         ></ha-device-info-matter>
       `);
     }
