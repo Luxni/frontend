@@ -55,6 +55,16 @@ export class HaDeviceInfoMatter extends SubscribeMixin(LitElement) {
 
     try {
       this._nodeBinding = await getMatterNodeBinding(this.hass, this.device.id);
+      if (this._nodeBinding) {
+        const nodeBinding = this._nodeBinding;
+        this.dispatchEvent(
+          new CustomEvent("node-binding-changed", {
+            detail: { nodeBinding },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      }
     } catch (_err: any) {
       this._nodeBinding = undefined;
     }
@@ -64,15 +74,6 @@ export class HaDeviceInfoMatter extends SubscribeMixin(LitElement) {
     if (!this._nodeDiagnostics) {
       return nothing;
     }
-
-    const hasNodeBinding = this._nodeBinding && this._nodeBinding.length > 0;
-    this.dispatchEvent(
-      new CustomEvent("node-binding-changed", {
-        detail: { hasNodeBinding },
-        bubbles: true,
-        composed: true,
-      })
-    );
 
     return html`
       <ha-expansion-panel

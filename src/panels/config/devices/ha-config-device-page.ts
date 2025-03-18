@@ -122,8 +122,6 @@ export class HaConfigDevicePage extends LitElement {
 
   @property({ attribute: false }) public showAdvanced = false;
 
-  @state() private _hasNodeBinding = false;
-
   @state() private _related?: RelatedResult;
 
   // If a number, it's the request ID so we make sure we don't show older info
@@ -248,6 +246,19 @@ export class HaConfigDevicePage extends LitElement {
     (entities: EntityRegistryEntry[]): EntityRegistryEntry | undefined =>
       findBatteryChargingEntity(this.hass, entities)
   );
+
+  private _handleCustomEvent(event: CustomEvent) {
+    const child_binding_card = this.shadowRoot?.querySelector(
+      "ha-device-binding-card"
+    );
+    if (child_binding_card) {
+      child_binding_card.dispatchEvent(
+        new CustomEvent("node-binding-changed", {
+          detail: event.detail,
+        })
+      );
+    }
+  }
 
   public willUpdate(changedProps) {
     super.willUpdate(changedProps);
@@ -871,18 +882,13 @@ export class HaConfigDevicePage extends LitElement {
         </div>
 
         <div class="column">
-          ${this._hasNodeBinding
-            ? html`
-                <ha-device-binding-card
-                  .hass=${this.hass}
-                  .header=${"Binding"}
-                  .deviceName=${deviceName}
-                  .entities=${entitiesByCategory.config}
-                  .showHidden=${device.disabled_by !== null}
-                >
-                </ha-device-binding-card>
-              `
-            : nothing}
+          <ha-device-binding-card
+            .hass=${this.hass}
+            .header=${"Binding"}
+            .deviceName=${deviceName}
+            .entities=${entitiesByCategory.config}
+          >
+          </ha-device-binding-card>
         </div>
 
         <div class="column">
@@ -908,12 +914,6 @@ export class HaConfigDevicePage extends LitElement {
         </div>
       </div>
     </hass-subpage>`;
-  }
-
-  private _handleNodeBindingChanged(
-    event: CustomEvent<{ hasNodeBinding: boolean }>
-  ) {
-    this._hasNodeBinding = event.detail.hasNodeBinding;
   }
 
   private async _getDiagnosticButtons(requestId: number): Promise<void> {
@@ -1268,7 +1268,7 @@ export class HaConfigDevicePage extends LitElement {
         <ha-device-info-matter
           .hass=${this.hass}
           .device=${device}
-          @node-binding-changed=${this._handleNodeBindingChanged}
+          @node-binding-changed=${this._handleCustomEvent}
         ></ha-device-info-matter>
       `);
     }
