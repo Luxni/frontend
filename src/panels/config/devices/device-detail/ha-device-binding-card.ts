@@ -1,10 +1,12 @@
 import "@material/mwc-button";
 import "@material/mwc-list/mwc-list";
+import "@material/mwc-list/mwc-list-item";
 import type { TemplateResult } from "lit";
 import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators";
 import "../../../../components/ha-card";
 import "../../../../components/ha-icon";
+import "../../../../components/ha-icon-button";
 import "../../../../components/ha-list-item";
 import type { HomeAssistant } from "../../../../types";
 import type { EntityRegistryStateEntry } from "../ha-config-device-page";
@@ -62,17 +64,25 @@ export class HaDeviceBindingCard extends LitElement {
                 <mwc-list>
                   ${bindings.map(
                     (device) => html`
-                    <div>
-                      <ha-list-item graphic="string" class="disabled-entry">
-                        <div slot="graphic">${device.endpoint_id}</div>
-                        <div class="name">${device.node_id}</div>
-                        <mwc-button @click=${this._bindingsDelete}>
-                          ${this.hass.localize(
-                            "ui.panel.config.devices.entities.binding.delete"
-                          )}
-                        </mwc-button>
-                      </ha-list-item>
-                    </div>
+                      <div>
+                        <mwc-list-item>
+                          <div
+                            style="display: flex; align-items: center; width: 100%;"
+                          >
+                            <ha-svg-icon
+                              path="M5.12,5H18.87L17.93,4H5.93L5.12,5M20.54,5.23C20.83,5.57 21,6 21,6.5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V6.5C3,6 3.17,5.57 3.46,5.23L4.84,3.55C5.12,3.21 5.53,3 6,3H18C18.47,3 18.88,3.21 19.15,3.55L20.54,5.23M6,18H12V15H6V18Z"
+                            ></ha-svg-icon>
+                            <span style="flex-grow: 1; text-align: center;">
+                              ${device.node_id + "/" + device.endpoint_id}
+                            </span>
+                            <mwc-button style="margin-left: auto;">
+                              ${this.hass.localize(
+                                "ui.panel.config.devices.entities.binding.delete"
+                              )}
+                            </mwc-button>
+                          </div>
+                        </mwc-list-item>
+                      </div>
                     `
                   )}
                 </mwc-list>
@@ -125,17 +135,15 @@ export class HaDeviceBindingCard extends LitElement {
     :not(.move-up) > mwc-list {
       margin-top: -24px;
     }
-    mwc-list + button.show-more,
-    .move-up + :not(:has(mwc-list)) > button.show-more {
-      margin-top: -12px;
-    }
+
     #entities > mwc-list {
       margin: 0 16px 0 8px;
     }
-    #entities > paper-icon-item {
+    #entities > ha-svg-icon {
       margin: 0;
     }
-    paper-icon-item {
+
+    ha-svg-icon {
       min-height: 40px;
       padding: 0 16px;
       cursor: pointer;
@@ -144,13 +152,8 @@ export class HaDeviceBindingCard extends LitElement {
     .name {
       font-size: 14px;
     }
-    .name:dir(rtl) {
-      margin-inline-start: 8px;
-    }
-    .empty {
-      text-align: center;
-    }
-    button.show-more {
+
+    ha-icon-button.show-more {
       color: var(--primary-color);
       text-align: left;
       cursor: pointer;
@@ -162,16 +165,13 @@ export class HaDeviceBindingCard extends LitElement {
       padding: 16px;
       font: inherit;
     }
-    button.show-more:focus {
+
+    ha-icon-button.show-more:focus {
       outline: none;
       text-decoration: underline;
     }
     mwc-list > * {
       margin: 8px 0px;
-    }
-    ha-list-item {
-      height: 40px;
-      --mdc-ripple-color: transparent;
     }
   `;
 }
