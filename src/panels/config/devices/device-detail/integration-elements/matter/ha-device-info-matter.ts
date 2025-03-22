@@ -54,12 +54,19 @@ export class HaDeviceInfoMatter extends SubscribeMixin(LitElement) {
     }
 
     try {
-      this._nodeBinding = await getMatterNodeBinding(this.hass, this.device.id);
+      this._nodeBinding = await getMatterNodeBinding(
+        this.hass,
+        this.device.id,
+        1
+      );
       if (this._nodeBinding) {
         const nodeBinding = this._nodeBinding;
         this.dispatchEvent(
           new CustomEvent("node-binding-changed", {
-            detail: { nodeBinding },
+            detail: {
+              nodeBinding: nodeBinding,
+              nodeDiagnostics: this._nodeDiagnostics,
+            },
             bubbles: true,
             composed: true,
           })

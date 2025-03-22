@@ -1,6 +1,7 @@
 import "@material/mwc-button";
 import "@material/mwc-list/mwc-list";
 import "@material/mwc-list/mwc-list-item";
+import "@material/mwc-textfield/mwc-textfield";
 import type { TemplateResult } from "lit";
 import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators";
@@ -9,8 +10,24 @@ import "../../../../components/ha-icon";
 import "../../../../components/ha-icon-button";
 import "../../../../components/ha-list-item";
 import type { HomeAssistant } from "../../../../types";
+
 import type { EntityRegistryStateEntry } from "../ha-config-device-page";
-import type { MatterNodeBinding } from "../../../../data/matter";
+
+import type {
+  MatterNodeBinding,
+  MatterNodeDiagnostics,
+} from "../../../../data/matter";
+
+import { setMatterNodeBinding } from "../../../../data/matter";
+
+declare global {
+  interface HTMLElementEventMap {
+    "node-binding-changed": CustomEvent<{
+      nodeBinding: MatterNodeBinding[];
+      nodeDiagnostics: MatterNodeDiagnostics;
+    }>;
+  }
+}
 
 @customElement("ha-device-binding-card")
 export class HaDeviceBindingCard extends LitElement {
@@ -28,11 +45,53 @@ export class HaDeviceBindingCard extends LitElement {
   @property({ attribute: false })
   public bindings?: MatterNodeBinding[];
 
-  private _handleNodeBindingChanged(event: CustomEvent<{ nodeBinding: [] }>) {
+  // @state()
+  // private _nodeDiagnostics?: MatterNodeDiagnostics;
+
+  handleDeleteClickCallback(event: Event) {
+    const button = event.target as HTMLElement;
+    const index = Number(button.dataset.index);
+
+    if (this.bindings) {
+      const endpoint = this.bindings[index].endpoint;
+      const device_id = this.entities[0].device_id;
+
+      // remove data
+      this.bindings?.splice(index, 1);
+
+      // send to device
+      setMatterNodeBinding(this.hass, device_id!, endpoint, this.bindings);
+    }
+    this.requestUpdate();
+  }
+
+  private _bindingsAdd(_ev: Event): void {
+    const nodeBinding: MatterNodeBinding = {
+      node: 1,
+      endpoint: 2,
+      group: 0,
+      cluster: 0,
+      fabricIndex: 2,
+    };
+    this.bindings?.push(nodeBinding);
+    this.requestUpdate();
+  }
+
+  private _handleNodeBindingChanged(
+    event: CustomEvent<{
+      nodeBinding: MatterNodeBinding[];
+      nodeDiagnostics: MatterNodeDiagnostics;
+    }>
+  ) {
     if (event.detail.nodeBinding) {
-      this.showHidden = true;
       this.bindings = event.detail.nodeBinding;
     }
+
+    // if(event.detail.nodeDiagnostics){
+    //     this._nodeDiagnostics = event.detail.nodeDiagnostics;
+    // }
+
+    this.showHidden = true;
   }
 
   connectedCallback(): void {
@@ -64,27 +123,21 @@ export class HaDeviceBindingCard extends LitElement {
                 <mwc-list>
                   ${bindings.map(
                     (device, index) => html`
-                      <mwc-list-item tabindex="0" data-index=${index}>
-                        <div
-                          style="display: flex; align-items: center; width: 100%;"
-                        >
-                          <ha-svg-icon>${index}</ha-svg-icon>
-                          <span style="flex-grow: 1; text-align: center;">
-                            ${device.node_id + "/" + device.endpoint_id}
-                          </span>
-                          <mwc-button
-                            slot="end"
-                            class="action-button"
-                            data-index=${index}
-                            style="margin-left: auto;"
-                            @click=${this._bindingsDelete}
-                          >
-                            ${this.hass.localize(
-                              "ui.panel.config.devices.entities.binding.delete"
-                            )}
-                          </mwc-button>
-                        </div>
-                      </mwc-list-item>
+                      <div class="grid-container">
+                        <mwc-list-item>
+                          <mwc-textfield
+                            .value=${String(device.node)}
+                          ></mwc-textfield>
+                          <mwc-textfield
+                            .value=${String(device.endpoint)}
+                          ></mwc-textfield>
+                        </mwc-list-item>
+                        <mwc-button
+                          label="delete"
+                          data-index=${index}
+                          @click=${this.handleDeleteClickCallback}
+                        ></mwc-button>
+                      </div>
                     `
                   )}
                 </mwc-list>
@@ -92,7 +145,34 @@ export class HaDeviceBindingCard extends LitElement {
             `
           : nothing}
 
-        <div class="card-actions">
+        <div class="grid-container">
+          <div class="outlined-container">
+            <span class="outlined-text">source</span>
+            <div class="grid-container">
+              <mwc-textfield
+                id="tx_source_binding_endpoint_id"
+                outlined
+                label="endpoint id"
+              ></mwc-textfield>
+            </div>
+          </div>
+
+          <div class="outlined-container">
+            <span class="outlined-text">target</span>
+            <div class="grid-container">
+              <mwc-textfield
+                id="tx_target_binding_node_id"
+                outlined
+                label="node id"
+              ></mwc-textfield>
+              <mwc-textfield
+                id="tx_target_binding_endpoint_id"
+                outlined
+                label="endpoint id"
+              ></mwc-textfield>
+            </div>
+          </div>
+
           <mwc-button @click=${this._bindingsAdd}>
             ${this.hass.localize(
               "ui.panel.config.devices.entities.binding.add"
@@ -101,18 +181,6 @@ export class HaDeviceBindingCard extends LitElement {
         </div>
       </ha-card>
     `;
-  }
-
-  private _bindingsAdd(_ev: Event): void {
-    const nodeBinding: MatterNodeBinding = { node_id: 1, endpoint_id: 2 };
-    this.bindings?.push(nodeBinding);
-    this.requestUpdate();
-  }
-
-  private _bindingsDelete(_ev: Event): void {
-    const button = _ev.currentTarget as HTMLElement;
-    this.bindings?.splice(button.dataset.index, 1);
-    this.requestUpdate();
   }
 
   static styles = css`
@@ -178,6 +246,45 @@ export class HaDeviceBindingCard extends LitElement {
     }
     mwc-list > * {
       margin: 8px 0px;
+    }
+
+    .grid-container {
+      display: flex;
+      grid-template-columns: repeat(
+        auto-fit,
+        minmax(100px, 1fr)
+      ); /* 自动调整列宽 */
+      gap: 10px; /* 设置元素之间的间距 */
+    }
+
+    .outlined-container {
+      position: relative;
+      outline: 2px solid #ccc;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 20px; /* 为标题留出空间 */
+    }
+
+    .outlined-text {
+      position: absolute;
+      top: -12px; /* 调整文本位置 */
+      left: 16px; /* 调整文本位置 */
+      background: white; /* 背景色覆盖边框 */
+      padding: 0 8px;
+      font-size: 16px;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .outlined-label {
+      position: absolute;
+      top: -12px; /* 调整文本位置 */
+      left: 16px; /* 调整文本位置 */
+      background: white; /* 背景色覆盖边框 */
+      padding: 0 8px;
+      font-size: 16px;
+      font-weight: bold;
+      color: #333;
     }
   `;
 }
