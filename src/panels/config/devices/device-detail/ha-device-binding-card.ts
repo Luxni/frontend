@@ -4,11 +4,12 @@ import "@material/mwc-list/mwc-list-item";
 import "@material/mwc-textfield/mwc-textfield";
 import type { TemplateResult } from "lit";
 import { css, html, LitElement, nothing } from "lit";
-import { customElement, property, state } from "lit/decorators";
+import { customElement, property, state, queryAll } from "lit/decorators";
 import "../../../../components/ha-card";
 import "../../../../components/ha-icon";
 import "../../../../components/ha-icon-button";
 import "../../../../components/ha-list-item";
+import type { TextField } from "@material/mwc-textfield/mwc-textfield";
 import type { HomeAssistant } from "../../../../types";
 
 import type { EntityRegistryStateEntry } from "../ha-config-device-page";
@@ -45,6 +46,9 @@ export class HaDeviceBindingCard extends LitElement {
   @property({ attribute: false })
   public bindings?: MatterNodeBinding[];
 
+  @queryAll(".bindingTarget")
+  private bindingTargetTextFiled!: NodeListOf<TextField>;
+
   // @state()
   // private _nodeDiagnostics?: MatterNodeDiagnostics;
 
@@ -65,16 +69,29 @@ export class HaDeviceBindingCard extends LitElement {
     this.requestUpdate();
   }
 
-  private _bindingsAdd(_ev: Event): void {
-    const nodeBinding: MatterNodeBinding = {
-      node: 1,
-      endpoint: 2,
-      group: 0,
-      cluster: 0,
-      fabricIndex: 2,
-    };
-    this.bindings?.push(nodeBinding);
-    this.requestUpdate();
+  handleAddClickCallback(_ev: Event): void {
+    if (this.bindings) {
+      const source_endpoint_id = this.bindingTargetTextFiled[0].value;
+      const target_node_id = this.bindingTargetTextFiled[1].value;
+      const target_endpoint_id = this.bindingTargetTextFiled[2].value;
+      const target_cluster_id = this.bindingTargetTextFiled[3].value;
+
+      const endpoint = Number(source_endpoint_id);
+      const device_id = this.entities[0].device_id;
+
+      const nodeBinding: MatterNodeBinding = {
+        node: Number(target_node_id),
+        endpoint: Number(target_endpoint_id),
+        group: null,
+        cluster: target_cluster_id === "" ? null : Number(target_cluster_id),
+        fabricIndex: null,
+      };
+      this.bindings?.push(nodeBinding);
+
+      setMatterNodeBinding(this.hass, device_id!, endpoint, this.bindings);
+
+      this.requestUpdate();
+    }
   }
 
   private _handleNodeBindingChanged(
@@ -86,11 +103,6 @@ export class HaDeviceBindingCard extends LitElement {
     if (event.detail.nodeBinding) {
       this.bindings = event.detail.nodeBinding;
     }
-
-    // if(event.detail.nodeDiagnostics){
-    //     this._nodeDiagnostics = event.detail.nodeDiagnostics;
-    // }
-
     this.showHidden = true;
   }
 
@@ -116,20 +128,23 @@ export class HaDeviceBindingCard extends LitElement {
     }
 
     return html`
-      <ha-card outlined .header=${this.header}>
+      <ha-card .header=${this.header}>
         ${bindings.length
           ? html`
-              <div id="entities" class="move-up">
+              <div>
                 <mwc-list>
                   ${bindings.map(
                     (device, index) => html`
                       <div class="grid-container">
-                        <mwc-list-item>
+                        <mwc-list-item disabled>
                           <mwc-textfield
                             .value=${String(device.node)}
                           ></mwc-textfield>
                           <mwc-textfield
                             .value=${String(device.endpoint)}
+                          ></mwc-textfield>
+                          <mwc-textfield
+                            .value=${String(device.cluster)}
                           ></mwc-textfield>
                         </mwc-list-item>
                         <mwc-button
@@ -145,35 +160,34 @@ export class HaDeviceBindingCard extends LitElement {
             `
           : nothing}
 
+        <div></div>
+
         <div class="grid-container">
-          <div class="outlined-container">
-            <span class="outlined-text">source</span>
-            <div class="grid-container">
-              <mwc-textfield
-                id="tx_source_binding_endpoint_id"
-                outlined
-                label="endpoint id"
-              ></mwc-textfield>
-            </div>
-          </div>
+          <mwc-textfield
+            class="bindingTarget"
+            outlined
+            label="source endpoint id"
+          ></mwc-textfield>
 
-          <div class="outlined-container">
-            <span class="outlined-text">target</span>
-            <div class="grid-container">
-              <mwc-textfield
-                id="tx_target_binding_node_id"
-                outlined
-                label="node id"
-              ></mwc-textfield>
-              <mwc-textfield
-                id="tx_target_binding_endpoint_id"
-                outlined
-                label="endpoint id"
-              ></mwc-textfield>
-            </div>
-          </div>
+          <mwc-textfield
+            class="bindingTarget"
+            outlined
+            label="target node id"
+          ></mwc-textfield>
 
-          <mwc-button @click=${this._bindingsAdd}>
+          <mwc-textfield
+            class="bindingTarget"
+            outlined
+            label="target endpoint id"
+          ></mwc-textfield>
+
+          <mwc-textfield
+            class="bindingTarget"
+            outlined
+            label="target cluster id"
+          ></mwc-textfield>
+
+          <mwc-button @click=${this.handleAddClickCallback}>
             ${this.hass.localize(
               "ui.panel.config.devices.entities.binding.add"
             )}
@@ -184,66 +198,7 @@ export class HaDeviceBindingCard extends LitElement {
   }
 
   static styles = css`
-    :host {
-      display: block;
-    }
-    ha-icon {
-      margin-left: -8px;
-    }
-    .entity-id {
-      color: var(--secondary-text-color);
-    }
-    .buttons {
-      text-align: right;
-      margin: 0 0 0 8px;
-    }
-    .disabled-entry {
-      color: var(--secondary-text-color);
-    }
-    .move-up {
-      margin-top: -13px;
-    }
-    .move-up:has(> mwc-list) {
-      margin-top: -24px;
-    }
-    :not(.move-up) > mwc-list {
-      margin-top: -24px;
-    }
 
-    #entities > mwc-list {
-      margin: 0 16px 0 8px;
-    }
-    #entities > ha-svg-icon {
-      margin: 0;
-    }
-
-    ha-svg-icon {
-      min-height: 40px;
-      padding: 0 16px;
-      cursor: pointer;
-      --paper-item-icon-width: 48px;
-    }
-    .name {
-      font-size: 14px;
-    }
-
-    ha-icon-button.show-more {
-      color: var(--primary-color);
-      text-align: left;
-      cursor: pointer;
-      background: none;
-      border-width: initial;
-      border-style: none;
-      border-color: initial;
-      border-image: initial;
-      padding: 16px;
-      font: inherit;
-    }
-
-    ha-icon-button.show-more:focus {
-      outline: none;
-      text-decoration: underline;
-    }
     mwc-list > * {
       margin: 8px 0px;
     }
@@ -252,39 +207,14 @@ export class HaDeviceBindingCard extends LitElement {
       display: flex;
       grid-template-columns: repeat(
         auto-fit,
-        minmax(100px, 1fr)
-      ); /* 自动调整列宽 */
-      gap: 10px; /* 设置元素之间的间距 */
+        minmax(10px, 1fr)
+      );
+      height:48px;
+      margin: 8px 8px;
+      gap: 10px;
     }
 
-    .outlined-container {
-      position: relative;
-      outline: 2px solid #ccc;
-      border-radius: 8px;
-      padding: 12px;
-      margin-top: 20px; /* 为标题留出空间 */
-    }
-
-    .outlined-text {
-      position: absolute;
-      top: -12px; /* 调整文本位置 */
-      left: 16px; /* 调整文本位置 */
-      background: white; /* 背景色覆盖边框 */
-      padding: 0 8px;
-      font-size: 16px;
-      font-weight: bold;
-      color: #333;
-    }
-
-    .outlined-label {
-      position: absolute;
-      top: -12px; /* 调整文本位置 */
-      left: 16px; /* 调整文本位置 */
-      background: white; /* 背景色覆盖边框 */
-      padding: 0 8px;
-      font-size: 16px;
-      font-weight: bold;
-      color: #333;
+  
     }
   `;
 }

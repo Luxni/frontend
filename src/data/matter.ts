@@ -42,10 +42,10 @@ export interface MatterNodeDiagnostics {
 
 export interface MatterNodeBinding {
   node: number;
-  group: number;
+  group: number | null;
   endpoint: number;
-  cluster: number;
-  fabricIndex: number;
+  cluster: number | null;
+  fabricIndex: number | null;
 }
 
 export type MatterPingResult = Record<string, boolean>;
