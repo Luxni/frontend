@@ -172,13 +172,11 @@ export const getMatterNodeDiagnostics = (
 
 export const getMatterNodeBinding = (
   hass: HomeAssistant,
-  device_id: string,
-  endpoint: number
-): Promise<MatterNodeBinding[]> =>
+  device_id: string
+): Promise<{}> =>
   hass.callWS({
     type: "matter/get_node_binding",
     device_id,
-    endpoint,
   });
 
 export const setMatterNodeBinding = (

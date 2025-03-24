@@ -3,10 +3,7 @@ import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators";
 import "../../../../../../components/ha-expansion-panel";
 import type { DeviceRegistryEntry } from "../../../../../../data/device_registry";
-import type {
-  MatterNodeBinding,
-  MatterNodeDiagnostics,
-} from "../../../../../../data/matter";
+import type { MatterNodeDiagnostics } from "../../../../../../data/matter";
 import {
   getMatterNodeBinding,
   getMatterNodeDiagnostics,
@@ -25,7 +22,7 @@ export class HaDeviceInfoMatter extends SubscribeMixin(LitElement) {
 
   @state() private _nodeDiagnostics?: MatterNodeDiagnostics;
 
-  @state() private _nodeBinding?: MatterNodeBinding[];
+  @state() private _nodeBinding?: {};
 
   public willUpdate(changedProperties: PropertyValues) {
     super.willUpdate(changedProperties);
@@ -54,11 +51,7 @@ export class HaDeviceInfoMatter extends SubscribeMixin(LitElement) {
     }
 
     try {
-      this._nodeBinding = await getMatterNodeBinding(
-        this.hass,
-        this.device.id,
-        1
-      );
+      this._nodeBinding = await getMatterNodeBinding(this.hass, this.device.id);
       if (this._nodeBinding) {
         const nodeBinding = this._nodeBinding;
         this.dispatchEvent(
