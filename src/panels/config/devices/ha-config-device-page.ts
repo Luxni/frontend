@@ -879,9 +879,7 @@ export class HaConfigDevicePage extends LitElement {
             .hass=${this.hass}
             .deviceId=${this.deviceId}
           ></ha-device-via-devices-card>
-        </div>
 
-        <div class="column">
           <ha-device-binding-card
             .hass=${this.hass}
             .header=${"Binding"}

@@ -1,17 +1,14 @@
-import "@material/mwc-button";
-import "@material/mwc-list/mwc-list";
-import "@material/mwc-list/mwc-list-item";
-import "@material/mwc-textfield/mwc-textfield";
 import type { TemplateResult } from "lit";
 import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state, queryAll } from "lit/decorators";
 import "../../../../components/ha-card";
 import "../../../../components/ha-icon";
-import "../../../../components/ha-icon-button";
+import "../../../../components/ha-button";
 import "../../../../components/ha-list-item";
-import type { TextField } from "@material/mwc-textfield/mwc-textfield";
-import type { HomeAssistant } from "../../../../types";
+import "../../../../components/ha-textfield";
 
+import type { HaTextField } from "../../../../components/ha-textfield";
+import type { HomeAssistant } from "../../../../types";
 import type { EntityRegistryStateEntry } from "../ha-config-device-page";
 
 import type {
@@ -41,13 +38,13 @@ export class HaDeviceBindingCard extends LitElement {
   @property({ attribute: false }) public entities!: EntityRegistryStateEntry[];
 
   @state()
-  public showHidden = true;
+  public showHidden = false;
 
   @property({ attribute: false })
   public bindings?: Record<string, MatterNodeBinding[]>;
 
   @queryAll(".bindingTarget")
-  private bindingTargetTextFiled!: NodeListOf<TextField>;
+  private bindingTargetTextFiled!: NodeListOf<HaTextField>;
 
   async handleDeleteClickCallback(event: Event) {
     const button = event.target as HTMLElement;
@@ -98,6 +95,7 @@ export class HaDeviceBindingCard extends LitElement {
         endpoint,
         bindings
       );
+
       if (ret[0].Status === 0) {
         this.bindings[source_endpoint_id].push(nodeBinding);
         this.requestUpdate();
@@ -133,13 +131,16 @@ export class HaDeviceBindingCard extends LitElement {
     return html`
       <ha-card .header=${this.header}>
         <div style="display:grid;padding:8px;gap:5px;">
-          <div style="font-weight: bold;" class="header-row">
-            <div style="flex:0.3">source endpoint</div>
-            <div style="flex:0.4" class="grid-container">
-              <div>target node</div>
-              <div>target endpoint</div>
+          <div
+            style="font-weight:bold;gap:4px;border-bottom:2px solid #333;padding-bottom:8px"
+            class="header-row"
+          >
+            <div style="flex:0.3;text-align:center">source endpoint</div>
+            <div style="display:flex; flex:0.5">
+              <div style="flex:0.5;text-align:center">target node</div>
+              <div style="flex:0.5;text-align:center">target endpoint</div>
             </div>
-            <div style="flex:0.3"></div>
+            <div style="flex:0.2"></div>
           </div>
 
           ${this.bindings
@@ -147,9 +148,19 @@ export class HaDeviceBindingCard extends LitElement {
                 ([key, value]) => html`
                   ${value.map(
                     (nodeItem, index) => html`
-                      <div class="header-row">
-                        <div style="flex:0.3">${key}</div>
-                        <div style="flex:0.4" class="grid-container">
+                      <div
+                        style="gap:2px;border-bottom:2px solid #333;padding-bottom:8px"
+                        class="header-row"
+                      >
+                        <div
+                          style="flex:0.3;align-items:center;text-align:center"
+                        >
+                          ${key}
+                        </div>
+                        <div
+                          style="flex:0.5;align-items:center;text-align:center"
+                          class="grid-container"
+                        >
                           <div>
                             ${nodeItem.node == null ? "null" : nodeItem.node}
                           </div>
@@ -159,14 +170,13 @@ export class HaDeviceBindingCard extends LitElement {
                               : nodeItem.endpoint}
                           </div>
                         </div>
-                        <div style="flex:0.3">
-                          <mwc-button
-                            data-endpoint=${key}
-                            data-index=${index}
-                            label="delete"
-                            @click=${this.handleDeleteClickCallback}
-                          ></mwc-button>
-                        </div>
+                        <ha-button
+                          style="flex:0.2"
+                          data-endpoint=${key}
+                          data-index=${index}
+                          label="delete"
+                          @click=${this.handleDeleteClickCallback}
+                        ></ha-button>
                       </div>
                     `
                   )}
@@ -174,32 +184,39 @@ export class HaDeviceBindingCard extends LitElement {
               )
             : nothing}
 
-          <div></div>
-
-          <div class="grid-container">
-            <mwc-textfield
+          <div style="display:flex;gap:4px;">
+            <ha-textfield
+              style="flex:0.3"
               class="bindingTarget"
-              outlined
               label="source endpoint"
-            ></mwc-textfield>
+              type="number"
+            >
+            </ha-textfield>
 
-            <mwc-textfield
+            <ha-textfield
+              style="flex:0.3"
               class="bindingTarget"
-              outlined
               label="target node"
-            ></mwc-textfield>
+              type="number"
+            >
+            </ha-textfield>
 
-            <mwc-textfield
+            <ha-textfield
+              style="flex:0.3"
               class="bindingTarget"
-              outlined
               label="target endpoint"
-            ></mwc-textfield>
+              type="number"
+            >
+            </ha-textfield>
 
-            <mwc-button @click=${this.handleAddClickCallback}>
+            <ha-button
+              style="flex:0.1;align-items:center"
+              @click=${this.handleAddClickCallback}
+            >
               ${this.hass.localize(
                 "ui.panel.config.devices.entities.binding.add"
               )}
-            </mwc-button>
+            </ha-button>
           </div>
         </div>
       </ha-card>
@@ -207,13 +224,12 @@ export class HaDeviceBindingCard extends LitElement {
   }
 
   static styles = css`
-
     .header-row {
       display: flex;
       padding: 2px;
       height: 30px;
-      align-items:center;
-      justify-content:center;
+      align-items: center;
+      justify-content: center;
     }
 
     .header-row div {
@@ -222,48 +238,7 @@ export class HaDeviceBindingCard extends LitElement {
 
     .grid-container {
       display: flex;
-    }
-
-    div mwc-textfield {
-      flex: 1;
-      font-weight: bold;
-      margin-right: 16px;
-    }
-
-    .grid-container mwc-textfield {
-        height:36px;
-}
-
-    .outlined-container {
-      position: relative;
-      outline: 2px solid #ccc;
-      border-radius: 8px;
-      padding: 12px;
-      margin-top: 24px; /* 为标题留出空间 */
-    }
-
-    .outlined-text {
-      position: absolute;
-      top: -12px; /* 调整文本位置 */
-      left: 16px; /* 调整文本位置 */
-      background: white; /* 背景色覆盖边框 */
-      padding: 0 8px;
-      font-size: 16px;
-      font-weight: bold;
-      color: #333;
-    }
-
-    .outlined-label {
-      position: absolute;
-      top: -12px; /* 调整文本位置 */
-      left: 16px; /* 调整文本位置 */
-      background: white; /* 背景色覆盖边框 */
-      padding: 0 8px;
-      font-size: 16px;
-      font-weight: bold;
-      color: #333;
-    }
-
+      height: 36px;
     }
   `;
 }
