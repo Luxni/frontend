@@ -73,17 +73,30 @@ export class HaDeviceBindingCard extends LitElement {
 
   async handleAddClickCallback(_ev: Event): Promise<any> {
     if (this.bindings) {
-      const source_endpoint_id = this.bindingTargetTextFiled[0].value;
-      const target_node_id = this.bindingTargetTextFiled[1].value;
-      const target_endpoint_id = this.bindingTargetTextFiled[2].value;
+      if (
+        this.bindingTargetTextFiled[0].value === "" ||
+        this.bindingTargetTextFiled[1].value === "" ||
+        this.bindingTargetTextFiled[2].value === ""
+      ) {
+        // notify in here
+        return;
+      }
 
-      const endpoint = Number(source_endpoint_id);
+      const source_endpoint = Number(this.bindingTargetTextFiled[0].value);
+      const target_node = Number(this.bindingTargetTextFiled[1].value);
+      const target_endpoint = Number(this.bindingTargetTextFiled[2].value);
+
       const device_id = this.entities[0].device_id;
-      const bindings = this.bindings![endpoint];
+      const bindings = this.bindings![source_endpoint];
+
+      if (source_endpoint === 0 || target_node === 0 || target_endpoint === 0) {
+        // notify in here
+        return;
+      }
 
       const nodeBinding: MatterNodeBinding = {
-        node: Number(target_node_id),
-        endpoint: Number(target_endpoint_id),
+        node: target_node,
+        endpoint: target_endpoint,
         group: null,
         cluster: null,
         fabricIndex: null,
@@ -92,12 +105,12 @@ export class HaDeviceBindingCard extends LitElement {
       const ret = await setMatterNodeBinding(
         this.hass,
         device_id!,
-        endpoint,
+        source_endpoint,
         bindings
       );
 
       if (ret[0].Status === 0) {
-        this.bindings[source_endpoint_id].push(nodeBinding);
+        this.bindings[source_endpoint].push(nodeBinding);
         this.requestUpdate();
       }
     }
@@ -130,15 +143,12 @@ export class HaDeviceBindingCard extends LitElement {
 
     return html`
       <ha-card .header=${this.header}>
-        <div style="display:grid;padding:8px;gap:5px;">
-          <div
-            style="font-weight:bold;gap:4px;border-bottom:2px solid #333;padding-bottom:8px"
-            class="header-row"
-          >
-            <div style="flex:0.3;text-align:center">source endpoint</div>
-            <div style="display:flex; flex:0.5">
-              <div style="flex:0.5;text-align:center">target node</div>
-              <div style="flex:0.5;text-align:center">target endpoint</div>
+        <div class="card-content">
+          <div class="header-row header-title">
+            <div class="header-column">source endpoint</div>
+            <div class="header-columns">
+              <div>target node</div>
+              <div>target endpoint</div>
             </div>
             <div style="flex:0.2"></div>
           </div>
@@ -148,19 +158,9 @@ export class HaDeviceBindingCard extends LitElement {
                 ([key, value]) => html`
                   ${value.map(
                     (nodeItem, index) => html`
-                      <div
-                        style="gap:2px;border-bottom:2px solid #333;padding-bottom:8px"
-                        class="header-row"
-                      >
-                        <div
-                          style="flex:0.3;align-items:center;text-align:center"
-                        >
-                          ${key}
-                        </div>
-                        <div
-                          style="flex:0.5;align-items:center;text-align:center"
-                          class="grid-container"
-                        >
+                      <div class="header-row binding-row">
+                        <div class="binding-column">${key}</div>
+                        <div class="binding-columns grid-container">
                           <div>
                             ${nodeItem.node == null ? "null" : nodeItem.node}
                           </div>
@@ -171,7 +171,7 @@ export class HaDeviceBindingCard extends LitElement {
                           </div>
                         </div>
                         <ha-button
-                          style="flex:0.2"
+                          class="binding-button"
                           data-endpoint=${key}
                           data-index=${index}
                           label="delete"
@@ -184,35 +184,17 @@ export class HaDeviceBindingCard extends LitElement {
               )
             : nothing}
 
-          <div style="display:flex;gap:4px;">
-            <ha-textfield
-              style="flex:0.3"
-              class="bindingTarget"
-              label="source endpoint"
-              type="number"
-            >
+          <div class="binding-controls">
+            <ha-textfield class="bindingTarget" label="source endpoint">
             </ha-textfield>
 
-            <ha-textfield
-              style="flex:0.3"
-              class="bindingTarget"
-              label="target node"
-              type="number"
-            >
+            <ha-textfield class="bindingTarget" label="target node">
             </ha-textfield>
 
-            <ha-textfield
-              style="flex:0.3"
-              class="bindingTarget"
-              label="target endpoint"
-              type="number"
-            >
+            <ha-textfield class="bindingTarget" label="target endpoint">
             </ha-textfield>
 
-            <ha-button
-              style="flex:0.1;align-items:center"
-              @click=${this.handleAddClickCallback}
-            >
+            <ha-button @click=${this.handleAddClickCallback}>
               ${this.hass.localize(
                 "ui.panel.config.devices.entities.binding.add"
               )}
@@ -224,6 +206,12 @@ export class HaDeviceBindingCard extends LitElement {
   }
 
   static styles = css`
+    .card-content {
+      display: grid;
+      padding: 8px;
+      gap: 5px;
+    }
+
     .header-row {
       display: flex;
       padding: 2px;
@@ -236,9 +224,68 @@ export class HaDeviceBindingCard extends LitElement {
       flex: 1;
     }
 
+    .header-title {
+      font-weight: bold;
+      gap: 4px;
+      border-bottom: 2px solid #333;
+      padding-bottom: 8px;
+    }
+
+    .header-column {
+      flex: 0.3;
+      text-align: center;
+    }
+
+    .header-columns {
+      display: flex;
+      flex: 0.5;
+    }
+
+    .header-columns div {
+      flex: 0.5;
+      text-align: center;
+    }
+
     .grid-container {
       display: flex;
       height: 36px;
+    }
+
+    .binding-row {
+      gap: 2px;
+      border-bottom: 2px solid #333;
+      padding-bottom: 8px;
+    }
+
+    .binding-column {
+      flex: 0.3;
+      align-items: center;
+      text-align: center;
+    }
+
+    .binding-columns {
+      flex: 0.5;
+      align-items: center;
+      text-align: center;
+    }
+
+    .binding-controls {
+      display: flex;
+      flex: 0.3;
+      gap: 4px;
+    }
+
+    .binding-controls ha-textfield {
+      flex: 0.3;
+    }
+
+    .binding-controls ha-button {
+      flex: 0.1;
+      align-items: center;
+    }
+
+    .binding-button {
+      flex: 0.2;
     }
   `;
 }
