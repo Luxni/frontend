@@ -405,7 +405,10 @@ export class HaConfigDevicePage extends LitElement {
 
     this._renderIntegrationInfo(device, integrations, deviceInfo);
 
-    const relatedConfigurations = this._renderRelatedConfigurations(device);
+    const relatedConfigurations = this._renderRelatedConfigurations(
+      device,
+      this._entityReg
+    );
 
     const add_prompt = device.disabled_by
       ? this.hass.localize("ui.panel.config.devices.add_prompt_disabled")
@@ -1244,7 +1247,10 @@ export class HaConfigDevicePage extends LitElement {
     }
   }
 
-  private _renderRelatedConfigurations(device: DeviceRegistryEntry) {
+  private _renderRelatedConfigurations(
+    device: DeviceRegistryEntry,
+    entities: EntityRegistryEntry[]
+  ) {
     const matter = isComponentLoaded(this.hass, "matter");
     const isMatterDevice = device.identifiers[0][0] === "matter";
     if (matter && isMatterDevice) {
@@ -1256,6 +1262,7 @@ export class HaConfigDevicePage extends LitElement {
           outlined
           .hass=${this.hass}
           .device=${device}
+          .entities=${entities}
         ></matter-device-binding-card>
       `;
     }

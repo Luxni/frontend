@@ -1,6 +1,8 @@
-import type { CSSResultGroup, PropertyValues } from "lit";
+import type { CSSResultGroup } from "lit";
 import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators";
+
+import memoizeOne from "memoize-one";
 
 import "../../../../../components/ha-button";
 import "../../../../../components/ha-list-item";
@@ -10,16 +12,19 @@ import "../../../../../components/ha-icon-next";
 
 import type { HomeAssistant } from "../../../../../types";
 import type { HaSelect } from "../../../../../components/ha-select";
-import type { DeviceRegistryEntry } from "../../../../../data/device_registry";
 import type { MatterNodeBindingDialogParams } from "./show-dialog-matter-node-binding";
-import type { MatterDeviceMapper } from "./matter-binding-node-device-mapper";
 import type { MatterNodeBinding } from "../../../../../data/matter";
+import type { EntityRegistryEntry } from "../../../../../data/entity_registry";
+import type { EntityRegistryStateEntry } from "../../../devices/ha-config-device-page";
+
+import { ASSIST_ENTITIES, SENSOR_ENTITIES } from "../../../../../common/const";
+import { computeDomain } from "../../../../../common/entity/compute_domain";
+import { groupBy } from "../../../../../common/util/group-by";
 
 import { fireEvent } from "../../../../../common/dom/fire_event";
 import { stopPropagation } from "../../../../../common/dom/stop_propagation";
 import { haStyle, haStyleDialog } from "../../../../../resources/styles";
 import { createCloseHeading } from "../../../../../components/ha-dialog";
-import { getDeviceControlsState } from "./matter-device-binding-card";
 
 export interface ItemSelectedEvent {
   target?: HaSelect;
@@ -37,24 +42,29 @@ class DialogMatterNodeBinding extends LitElement {
 
   @state() private bindings?: Record<string, MatterNodeBinding[]>;
 
-  @state() private _bindableDevices: DeviceRegistryEntry[] = [];
+  @property({ attribute: false }) public entities!: EntityRegistryEntry[];
 
-  @state() private deviceMapper?: MatterDeviceMapper;
+  private _handleSelectionChange(_e: CustomEvent) {
+    this.requestUpdate();
+  }
 
   public async showDialog(
     params: MatterNodeBindingDialogParams
   ): Promise<void> {
     this.device_id = params.device_id;
     this.bindings = params.bindings;
-    this.deviceMapper = params.deviceMapper;
     this._params = params;
+    this.entities = params.entities;
   }
 
-  private _createNodeBinding(targetNodeId: number): MatterNodeBinding {
+  private _createNodeBinding(
+    targetNodeId: number,
+    targetNodeEndpoint: number
+  ): MatterNodeBinding {
     return {
       node: targetNodeId,
       group: null,
-      endpoint: 1,
+      endpoint: targetNodeEndpoint,
       cluster: null,
       fabricIndex: null,
     };
@@ -79,9 +89,15 @@ class DialogMatterNodeBinding extends LitElement {
       const targetSelect: HaSelect = this.shadowRoot!.querySelector(
         ".binding-controls ha-select:nth-child(4)"
       )!;
-      const targetNode = targetSelect.value;
-      const nodeBinding = this._createNodeBinding(Number(targetNode));
+      const unique_id = targetSelect.value;
+      const target_node = unique_id.split("-");
+      const target_node_id = parseInt(target_node[1], 16);
+      const target_node_endpoint = parseInt(target_node[3], 10);
 
+      const nodeBinding = this._createNodeBinding(
+        target_node_id,
+        target_node_endpoint
+      );
       if (!this._isBindingExists(source_endpoint, nodeBinding)) {
         this.bindings![source_endpoint].push(nodeBinding);
         this._params?.onUpdate(Number(source_endpoint), this.bindings!);
@@ -95,20 +111,65 @@ class DialogMatterNodeBinding extends LitElement {
     }
   }
 
-  protected updated(changedProperties: PropertyValues): void {
-    if (changedProperties.has("hass")) {
-      this._bindableDevices = Object.values(this.hass.devices).filter(
-        (device) =>
-          device.identifiers.find((identifier) => identifier[0] === "matter") &&
-          device.id !== this.device_id
-      );
+  private _entitiesByCategory = memoizeOne(
+    (entities: EntityRegistryEntry[]) => {
+      const result = groupBy(entities, (entry) => {
+        const domain = computeDomain(entry.entity_id);
+
+        if (ASSIST_ENTITIES.includes(domain)) {
+          return "assist";
+        }
+
+        if (domain === "event" || domain === "notify") {
+          return domain;
+        }
+
+        if (entry.entity_category) {
+          return entry.entity_category;
+        }
+
+        if (SENSOR_ENTITIES.includes(domain)) {
+          return "sensor";
+        }
+
+        return "control";
+      }) as Record<
+        | "control"
+        | "event"
+        | "sensor"
+        | "assist"
+        | "notify"
+        | NonNullable<EntityRegistryEntry["entity_category"]>,
+        EntityRegistryStateEntry[]
+      >;
+      for (const key of [
+        "assist",
+        "config",
+        "control",
+        "diagnostic",
+        "event",
+        "notify",
+        "sensor",
+      ]) {
+        if (!(key in result)) {
+          result[key] = [];
+        }
+      }
+
+      return result;
     }
-  }
+  );
 
   protected render() {
     if (!this.device_id) {
       return nothing;
     }
+
+    const matterEntities = Object.values(this.entities).filter(
+      (entity) =>
+        entity.platform === "matter" && entity.device_id !== this.device_id
+    );
+    const entitiesByCategory = this._entitiesByCategory(matterEntities);
 
     return html`
       <ha-dialog
@@ -128,25 +189,23 @@ class DialogMatterNodeBinding extends LitElement {
             )}
           </ha-select>
           <div>Target</div>
-          <ha-select @closed=${stopPropagation} fixedMenuPosition>
-            ${this._bindableDevices.map(
-              (device) => html`
-                <ha-list-item
-                  twoline
-                  graphic="icon"
-                  .value=${String(
-                    this.deviceMapper?.getNodeIdByDeviceId(device.id)
-                  )}
-                >
-                  <span>${device.name_by_user || device.name}</span>
-                  <span slot="secondary">
-                    ${"node id: " +
-                    String(this.deviceMapper?.getNodeIdByDeviceId(device.id))}
+          <ha-select
+            @closed=${stopPropagation}
+            fixedMenuPosition
+            @selected=${this._handleSelectionChange}
+          >
+            ${entitiesByCategory.control.map(
+              (entity) => html`
+                <ha-list-item twoline graphic="icon" .value=${entity.unique_id}>
+                  <span>
+                    ${this.hass.states[entity.entity_id].attributes
+                      .friendly_name}
                   </span>
+                  <span slot="secondary">${entity.entity_id}</span>
                   <ha-state-icon
                     slot="graphic"
                     .hass=${this.hass}
-                    .stateObj=${getDeviceControlsState(this.hass, device)}
+                    .stateObj=${this.hass.states[entity.entity_id]}
                   ></ha-state-icon>
                 </ha-list-item>
               `

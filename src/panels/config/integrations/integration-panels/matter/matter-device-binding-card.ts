@@ -1,7 +1,12 @@
+import { mdiDevices, mdiPlusCircle } from "@mdi/js";
+
 import type { HassEntity } from "home-assistant-js-websocket";
 import type { TemplateResult, PropertyValues } from "lit";
 import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators";
+
+import memoizeOne from "memoize-one";
+
 import "../../../../../components/ha-card";
 import "../../../../../components/ha-icon";
 import "../../../../../components/ha-button";
@@ -9,21 +14,27 @@ import "../../../../../components/ha-list-item";
 import "../../../../../components/ha-textfield";
 import "../../../../../components/ha-icon-button";
 import "../../../../../components/ha-selector/ha-selector";
-
-import { mdiDevices, mdiPlusCircle } from "@mdi/js";
 import { showMatterNodeBindingDialog } from "./show-dialog-matter-node-binding";
 import { fireEvent } from "../../../../../common/dom/fire_event";
 import {
   getMatterNodeBinding,
   setMatterNodeBinding,
 } from "../../../../../data/matter";
-import { MatterDeviceMapper } from "./matter-binding-node-device-mapper";
 
+import { ASSIST_ENTITIES, SENSOR_ENTITIES } from "../../../../../common/const";
+import { computeDomain } from "../../../../../common/entity/compute_domain";
+import { groupBy } from "../../../../../common/util/group-by";
+
+import { MatterDeviceMapper } from "./matter-binding-node-device-mapper";
 import type { HaSelect } from "../../../../../components/ha-select";
 import type { HomeAssistant } from "../../../../../types";
 import type { DeviceRegistryEntry } from "../../../../../data/device_registry";
-import type { EntityRegistryDisplayEntry } from "../../../../../data/entity_registry";
+import type {
+  EntityRegistryDisplayEntry,
+  EntityRegistryEntry,
+} from "../../../../../data/entity_registry";
 import type { MatterNodeBinding } from "../../../../../data/matter";
+import type { EntityRegistryStateEntry } from "../../../devices/ha-config-device-page";
 
 export interface ItemSelectedEvent {
   target?: HaSelect;
@@ -72,6 +83,8 @@ export class MatterDeviceBindingCard extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
 
   @property({ attribute: false }) public device!: DeviceRegistryEntry;
+
+  @property({ attribute: false }) public entities!: EntityRegistryEntry[];
 
   @property({ type: Boolean, reflect: true }) outlined = false;
 
@@ -138,7 +151,8 @@ export class MatterDeviceBindingCard extends LitElement {
         this.requestUpdate();
       }
     } catch (_err) {
-      alert("set matter binding error!");
+      // eslint-disable-next-line no-console
+      console.log("matter:", _err);
     }
   };
 
@@ -148,6 +162,7 @@ export class MatterDeviceBindingCard extends LitElement {
       bindings: this.bindings!,
       onUpdate: this._onDialogUpdate,
       deviceMapper: this.deviceMapper!,
+      entities: this.entities,
     });
   }
 
@@ -156,7 +171,9 @@ export class MatterDeviceBindingCard extends LitElement {
       try {
         this.bindings = await getMatterNodeBinding(this.hass, this.device.id!);
       } catch (_err) {
-        alert(_err);
+        // eslint-disable-next-line no-console
+        console.log("matter:", _err);
+        return;
       }
       if (Object.values(this.bindings!).some((value) => Array.isArray(value))) {
         this.showHidden = true;
@@ -164,15 +181,7 @@ export class MatterDeviceBindingCard extends LitElement {
     }
   }
 
-  connectedCallback(): void {
-    super.connectedCallback();
-  }
-
-  disconnectedCallback(): void {
-    super.disconnectedCallback();
-  }
-
-  protected updated(changedProperties: PropertyValues): void {
+  protected willUpdate(changedProperties: PropertyValues): void {
     if (changedProperties.has("hass")) {
       this._fetchBindingForMatterDevice();
       this.deviceMapper = new MatterDeviceMapper(this.hass);
@@ -192,10 +201,80 @@ export class MatterDeviceBindingCard extends LitElement {
     return undefined;
   }
 
+  private _entitiesByCategory = memoizeOne(
+    (entities: EntityRegistryEntry[]) => {
+      const result = groupBy(entities, (entry) => {
+        const domain = computeDomain(entry.entity_id);
+
+        if (ASSIST_ENTITIES.includes(domain)) {
+          return "assist";
+        }
+
+        if (domain === "event" || domain === "notify") {
+          return domain;
+        }
+
+        if (entry.entity_category) {
+          return entry.entity_category;
+        }
+
+        if (SENSOR_ENTITIES.includes(domain)) {
+          return "sensor";
+        }
+
+        return "control";
+      }) as Record<
+        | "control"
+        | "event"
+        | "sensor"
+        | "assist"
+        | "notify"
+        | NonNullable<EntityRegistryEntry["entity_category"]>,
+        EntityRegistryStateEntry[]
+      >;
+      for (const key of [
+        "assist",
+        "config",
+        "control",
+        "diagnostic",
+        "event",
+        "notify",
+        "sensor",
+      ]) {
+        if (!(key in result)) {
+          result[key] = [];
+        }
+      }
+
+      return result;
+    }
+  );
+
+  private _getEntityByNodeInfo(
+    nodeItem: MatterNodeBinding,
+    entities: EntityRegistryEntry[]
+  ) {
+    return Object.values(entities).find((entity) => {
+      const device_id = this.deviceMapper?.getDeviceIdByNodeId(
+        String(nodeItem.node)
+      );
+      return (
+        entity.device_id === device_id &&
+        String(nodeItem.endpoint) === entity.unique_id.split("-")[3]
+      );
+    });
+  }
+
   protected render(): TemplateResult {
     if (!this.showHidden) {
       return html`<p></p>`;
     }
+
+    const matterEntities = Object.values(this.entities).filter(
+      (entity) =>
+        entity.platform === "matter" && entity.device_id !== this.device.id
+    );
+    const entitiesByCategory = this._entitiesByCategory(matterEntities);
 
     return html`
       <ha-card outlined>
@@ -221,38 +300,33 @@ export class MatterDeviceBindingCard extends LitElement {
                           (nodeItem, index) => html`
                             <section class="binding-row">
                               <ha-list-item twoline graphic="icon">
-                                <span>
-                                  ${(() => {
-                                    const device = this.getDeviceByNodeId(
-                                      nodeItem.node
-                                    );
-                                    return device
-                                      ? device.name_by_user || device.name
-                                      : "undefined";
-                                  })()}
-                                </span>
-                                <span slot="secondary">
-                                  ${"node id: " + nodeItem.node}
-                                </span>
-
                                 ${(() => {
-                                  const device = this.getDeviceByNodeId(
-                                    nodeItem.node
+                                  const entity = this._getEntityByNodeInfo(
+                                    nodeItem,
+                                    entitiesByCategory.control
                                   );
-                                  const device_state = getDeviceControlsState(
-                                    this.hass,
-                                    device!
-                                  );
-                                  return device_state
+                                  return entity
                                     ? html`
+                                        <span>
+                                          ${this.hass.states[entity.entity_id]
+                                            .attributes.friendly_name}
+                                        </span>
+                                        <span slot="secondary"
+                                          >${entity.entity_id}</span
+                                        >
                                         <ha-state-icon
                                           slot="graphic"
                                           .hass=${this.hass}
-                                          .stateObj=${device_state}
-                                          )}
+                                          .stateObj=${this.hass.states[
+                                            entity.entity_id
+                                          ]}
                                         ></ha-state-icon>
                                       `
                                     : html`
+                                        <span>
+                                          ${"unKonwn node: " + nodeItem.node}
+                                        </span>
+                                        <span slot="secondary">unKonw</span>
                                         <ha-svg-icon
                                           slot="graphic"
                                           .path=${mdiDevices}
