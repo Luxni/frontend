@@ -17,6 +17,8 @@ import "../../../../../components/ha-selector/ha-selector";
 import { showMatterNodeBindingDialog } from "./show-dialog-matter-node-binding";
 import { fireEvent } from "../../../../../common/dom/fire_event";
 import {
+  addMatterNodeToACL,
+  deleteMatterNodeAtACL,
   getMatterNodeBinding,
   setMatterNodeBinding,
 } from "../../../../../data/matter";
@@ -104,6 +106,15 @@ export class MatterDeviceBindingCard extends LitElement {
     const bindings = this.bindings![endpoint];
     if (!bindings) return false;
 
+    const target = bindings[index];
+    const acl_result = deleteMatterNodeAtACL(
+      this.hass,
+      this.deviceMapper!.getDeviceIdByNodeId(String(target.node))!,
+      Number(this.deviceMapper!.getNodeIdByDeviceId(String(this.device.id))!)
+    );
+    // eslint-disable-next-line no-console
+    console.log(acl_result[0]);
+
     bindings.splice(index, 1);
     const ret = await setMatterNodeBinding(
       this.hass,
@@ -140,6 +151,18 @@ export class MatterDeviceBindingCard extends LitElement {
     bindings: Record<string, MatterNodeBinding[]>
   ) => {
     try {
+      Object.values(bindings).forEach((listItem) => {
+        listItem.forEach((nodeItem) => {
+          const acl_result = addMatterNodeToACL(
+            this.hass,
+            this.deviceMapper!.getDeviceIdByNodeId(String(nodeItem.node))!,
+            Number(this.deviceMapper!.getNodeIdByDeviceId(this.device.id))
+          );
+          // eslint-disable-next-line no-console
+          console.log(acl_result);
+        });
+      });
+
       const ret = await setMatterNodeBinding(
         this.hass,
         this.device.id,
@@ -181,7 +204,7 @@ export class MatterDeviceBindingCard extends LitElement {
     }
   }
 
-  protected willUpdate(changedProperties: PropertyValues): void {
+  protected firstUpdated(changedProperties: PropertyValues): void {
     if (changedProperties.has("hass")) {
       this._fetchBindingForMatterDevice();
       this.deviceMapper = new MatterDeviceMapper(this.hass);

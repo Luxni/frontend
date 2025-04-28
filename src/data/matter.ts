@@ -192,6 +192,28 @@ export const setMatterNodeBinding = (
     bindings,
   });
 
+export const addMatterNodeToACL = (
+  hass: HomeAssistant,
+  device_id: string,
+  node: number
+): Promise<void> =>
+  hass.callWS({
+    type: "matter/add_node_to_acl",
+    device_id,
+    node,
+  });
+
+export const deleteMatterNodeAtACL = (
+  hass: HomeAssistant,
+  device_id: string,
+  node: number
+): Promise<void> =>
+  hass.callWS({
+    type: "matter/delete_node_at_acl",
+    device_id,
+    node,
+  });
+
 export const pingMatterNode = (
   hass: HomeAssistant,
   device_id: string

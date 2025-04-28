@@ -92,7 +92,7 @@ class DialogMatterNodeBinding extends LitElement {
       const unique_id = targetSelect.value;
       const target_node = unique_id.split("-");
       const target_node_id = parseInt(target_node[1], 16);
-      const target_node_endpoint = parseInt(target_node[3], 10);
+      const target_node_endpoint = parseInt(target_node[3], 16);
 
       const nodeBinding = this._createNodeBinding(
         target_node_id,
